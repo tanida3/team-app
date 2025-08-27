@@ -4,11 +4,13 @@ import React, { useState, useEffect } from "react";
 // 動画の型定義
 type Video = {
   id: string;
+  title?: string;
 };
 
 const VideoApp: React.FC = () => {
   const [videos, setVideos] = useState<Video[]>([]);
-  const [input, setInput] = useState("");
+  const [input, setInput] = useState("");        // URL
+  const [loading, setLoading] = useState(false); // 追加処理中フラグ
 
   // --- LocalStorageから読み込み ---
   useEffect(() => {
@@ -38,19 +40,35 @@ const VideoApp: React.FC = () => {
     }
   };
 
-  // --- 動画を追加 ---
-  const handleAddVideo = () => {
+  // --- 動画を追加（タイトル自動取得） ---
+  const handleAddVideo = async () => {
     const videoId = extractVideoId(input.trim());
     if (!videoId) {
       alert("正しいYouTubeのURLを入力してください。");
       return;
     }
 
-    const newVideos = [...videos, { id: videoId }];
+    setLoading(true);
+
+    // タイトル自動取得
+    let title: string | undefined;
+    try {
+      const res = await fetch(
+        `https://noembed.com/embed?url=https://www.youtube.com/watch?v=${videoId}`
+      );
+      const data = await res.json();
+      title = data.title || undefined;
+    } catch {
+      title = undefined;
+    }
+
+    const newVideo: Video = { id: videoId, title };
+    const newVideos = [...videos, newVideo];
     setVideos(newVideos);
     saveToLocalStorage(newVideos);
 
     setInput("");
+    setLoading(false);
   };
 
   // --- 動画を削除 ---
@@ -64,7 +82,7 @@ const VideoApp: React.FC = () => {
     <div className="p-4">
       <h2 className="text-xl font-bold mb-4">MY LIST</h2>
 
-      {/* 入力フォーム */}
+      {/* URL入力フォーム */}
       <div className="flex gap-2 mb-4">
         <input
           type="text"
@@ -74,10 +92,11 @@ const VideoApp: React.FC = () => {
           className="border p-2 flex-1 rounded"
         />
         <button
-          onClick={handleAddVideo}
-          className="bg-blue-500 text-white px-4 py-2 rounded"
+          onClick={() => void handleAddVideo()}
+          disabled={loading}
+          className={`px-4 py-2 rounded text-white ${loading ? "bg-gray-400" : "bg-blue-500"}`}
         >
-          追加
+          {loading ? "追加中…" : "追加"}
         </button>
       </div>
 
@@ -92,10 +111,12 @@ const VideoApp: React.FC = () => {
             >
               <img
                 src={`https://img.youtube.com/vi/${video.id}/0.jpg`}
-                alt="YouTube動画"
+                alt={video.title || "YouTube動画"}
                 className="w-full rounded"
               />
-              <p className="text-center mt-2">動画を見る</p>
+              <p className="text-center mt-2">
+                {video.title ? video.title : "動画を見る"}
+              </p>
             </a>
             <button
               onClick={() => handleDeleteVideo(video.id)}
